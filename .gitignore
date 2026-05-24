@@ -56,15 +56,18 @@ replay_pid*.log
 .\#*
 
 # =============================================================================
-# Env files & secrets — never commit real credentials.
-# The .env.* wildcard covers .env.local / .env.production / .env.staging too;
-# the negations below keep the checked-in templates safe.
+# Env files & secrets — never commit real credentials or env templates.
 # =============================================================================
 .env
 .env.*
 *.env
-!.env.example
-!env.example
+.env.example
+env.example
+
+# =============================================================================
+# Docker — keep build-config files local
+# =============================================================================
+.dockerignore
 
 # =============================================================================
 # Runtime artifacts (logs, pid files written by scripts/start-all.sh)
