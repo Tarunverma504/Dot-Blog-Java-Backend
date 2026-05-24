@@ -1,15 +1,23 @@
 # Render blueprint for Dot-Blog backend — all-Web-Service, free-tier layout.
 # -----------------------------------------------------------------------------
-# 6 public Web Services on Render's free tier. Inter-service traffic stays on
-# Render's internal private network (services reach each other at
-# http://<service-name>:10000 without going through the public internet).
+# 6 public Web Services on Render's free tier.
+#
+# IMPORTANT — inter-service URLs are MANUAL on free tier.
+#   Free Web Services on Render CANNOT receive private-network traffic
+#   (https://render.com/docs/free). So services must call each other over
+#   public https://*.onrender.com URLs. Those URLs include a random hash
+#   that Render only generates at first deploy, so we can't hardcode them
+#   here — they're marked `sync: false` and you fill them in after the
+#   first deploy via each service's Environment tab.
 #
 # Free-tier caveats:
-#   - 512 MB RAM, 0.1 CPU per instance. Spring Boot apps may be slow; if any
-#     service OOMs at startup, upgrade just that one to `plan: starter`.
+#   - 512 MB RAM, 0.1 CPU per instance. If any service OOMs, upgrade just
+#     that one to `plan: starter`.
 #   - Services sleep after ~15 min of inactivity. First request after idle
 #     incurs a ~30s cold start. Run `scripts/smoke.sh` twice if the first
 #     attempt times out.
+#   - Inter-service traffic uses public URLs (counts toward outbound
+#     bandwidth, ~5 GB/month included).
 #
 # SECURITY WARNING:
 #   media-service exposes /internal/upload and /internal/delete with no auth.
@@ -86,9 +94,9 @@ services:
       - key: JWT_SECRET
         sync: false
       - key: MEDIA_SERVICE_URI
-        value: http://media-service:10000
+        sync: false   # https://media-service-XXXX.onrender.com
       - key: BLOG_SERVICE_URI
-        value: http://blog-service:10000
+        sync: false   # https://blog-service-XXXX.onrender.com
 
   # ------------------------------------------------------------------
   # blog-service — blog CRUD, publish, soft-delete, list endpoints.
@@ -108,9 +116,9 @@ services:
       - key: JWT_SECRET
         sync: false
       - key: USER_SERVICE_URI
-        value: http://user-service:10000
+        sync: false   # https://user-service-XXXX.onrender.com
       - key: MEDIA_SERVICE_URI
-        value: http://media-service:10000
+        sync: false   # https://media-service-XXXX.onrender.com
 
   # ------------------------------------------------------------------
   # engagement-service — like / dislike / comment.
@@ -130,7 +138,7 @@ services:
       - key: JWT_SECRET
         sync: false
       - key: USER_SERVICE_URI
-        value: http://user-service:10000
+        sync: false   # https://user-service-XXXX.onrender.com
 
   # ------------------------------------------------------------------
   # gateway — public entry point for the React client.
@@ -146,10 +154,10 @@ services:
       - key: SPRINGDOTENV_ENABLED
         value: "false"
       - key: AUTH_SERVICE_URI
-        value: http://auth-service:10000
+        sync: false   # https://auth-service-XXXX.onrender.com
       - key: USER_SERVICE_URI
-        value: http://user-service:10000
+        sync: false   # https://user-service-XXXX.onrender.com
       - key: BLOG_SERVICE_URI
-        value: http://blog-service:10000
+        sync: false   # https://blog-service-XXXX.onrender.com
       - key: ENGAGEMENT_SERVICE_URI
-        value: http://engagement-service:10000
+        sync: false   # https://engagement-service-XXXX.onrender.com
