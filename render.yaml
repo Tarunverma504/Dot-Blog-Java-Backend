@@ -1,0 +1,154 @@
+# Render blueprint for Dot-Blog backend.
+# 1 public Web Service (gateway) + 5 Private Services (auth/user/blog/engagement/media).
+#
+# Usage: push this file, then in Render dashboard:
+#   New + -> Blueprint -> connect this repo -> fill in secret env vars -> Apply.
+#
+# Secrets marked `sync: false` are NOT stored in git; Render prompts for them
+# at blueprint creation and stores them encrypted.
+
+services:
+  # ------------------------------------------------------------------
+  # Private services (internal-only; reachable from other Render services
+  # in the same workspace by their service name).
+  # ------------------------------------------------------------------
+
+  - type: pserv
+    name: media-service
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./media-service/Dockerfile
+    dockerContext: .
+    envVars:
+      - key: SPRINGDOTENV_ENABLED
+        value: "false"
+      - key: CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+
+  - type: pserv
+    name: auth-service
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./auth-service/Dockerfile
+    dockerContext: .
+    envVars:
+      - key: SPRINGDOTENV_ENABLED
+        value: "false"
+      - key: DATABASE_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: TWO_WAY_SECRET
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: SENDER_MAIL_ID
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+
+  - type: pserv
+    name: user-service
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./user-service/Dockerfile
+    dockerContext: .
+    envVars:
+      - key: SPRINGDOTENV_ENABLED
+        value: "false"
+      - key: DATABASE_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: MEDIA_SERVICE_URI
+        fromService:
+          type: pserv
+          name: media-service
+          property: hostport
+      - key: BLOG_SERVICE_URI
+        fromService:
+          type: pserv
+          name: blog-service
+          property: hostport
+
+  - type: pserv
+    name: blog-service
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./blog-service/Dockerfile
+    dockerContext: .
+    envVars:
+      - key: SPRINGDOTENV_ENABLED
+        value: "false"
+      - key: DATABASE_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: USER_SERVICE_URI
+        fromService:
+          type: pserv
+          name: user-service
+          property: hostport
+      - key: MEDIA_SERVICE_URI
+        fromService:
+          type: pserv
+          name: media-service
+          property: hostport
+
+  - type: pserv
+    name: engagement-service
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./engagement-service/Dockerfile
+    dockerContext: .
+    envVars:
+      - key: SPRINGDOTENV_ENABLED
+        value: "false"
+      - key: DATABASE_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: USER_SERVICE_URI
+        fromService:
+          type: pserv
+          name: user-service
+          property: hostport
+
+  # ------------------------------------------------------------------
+  # Public service — the only thing your React client talks to.
+  # ------------------------------------------------------------------
+
+  - type: web
+    name: gateway
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./gateway/Dockerfile
+    dockerContext: .
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: SPRINGDOTENV_ENABLED
+        value: "false"
+      - key: AUTH_SERVICE_URI
+        fromService:
+          type: pserv
+          name: auth-service
+          property: hostport
+      - key: USER_SERVICE_URI
+        fromService:
+          type: pserv
+          name: user-service
+          property: hostport
+      - key: BLOG_SERVICE_URI
+        fromService:
+          type: pserv
+          name: blog-service
+          property: hostport
+      - key: ENGAGEMENT_SERVICE_URI
+        fromService:
+          type: pserv
+          name: engagement-service
+          property: hostport
