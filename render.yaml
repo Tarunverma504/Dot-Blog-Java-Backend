@@ -1,24 +1,37 @@
-# Render blueprint for Dot-Blog backend.
-# 1 public Web Service (gateway) + 5 Private Services (auth/user/blog/engagement/media).
+# Render blueprint for Dot-Blog backend — all-Web-Service, free-tier layout.
+# -----------------------------------------------------------------------------
+# 6 public Web Services on Render's free tier. Inter-service traffic stays on
+# Render's internal private network (services reach each other at
+# http://<service-name>:10000 without going through the public internet).
+#
+# Free-tier caveats:
+#   - 512 MB RAM, 0.1 CPU per instance. Spring Boot apps may be slow; if any
+#     service OOMs at startup, upgrade just that one to `plan: starter`.
+#   - Services sleep after ~15 min of inactivity. First request after idle
+#     incurs a ~30s cold start. Run `scripts/smoke.sh` twice if the first
+#     attempt times out.
+#
+# SECURITY WARNING:
+#   media-service exposes /internal/upload and /internal/delete with no auth.
+#   On Render free tier it must be a public Web Service (Private Services
+#   require a paid plan), which means those endpoints are reachable from the
+#   internet. Add a shared-secret header check on /internal/* before opening
+#   to real users, or upgrade media-service alone to `pserv` on starter plan.
 #
 # Usage: push this file, then in Render dashboard:
 #   New + -> Blueprint -> connect this repo -> fill in secret env vars -> Apply.
-#
-# Secrets marked `sync: false` are NOT stored in git; Render prompts for them
-# at blueprint creation and stores them encrypted.
 
 services:
   # ------------------------------------------------------------------
-  # Private services (internal-only; reachable from other Render services
-  # in the same workspace by their service name).
+  # media-service — Cloudinary credentials live here only.
   # ------------------------------------------------------------------
-
-  - type: pserv
+  - type: web
     name: media-service
     runtime: docker
-    plan: starter
+    plan: free
     dockerfilePath: ./media-service/Dockerfile
     dockerContext: .
+    healthCheckPath: /actuator/health
     envVars:
       - key: SPRINGDOTENV_ENABLED
         value: "false"
@@ -29,12 +42,16 @@ services:
       - key: CLOUDINARY_API_SECRET
         sync: false
 
-  - type: pserv
+  # ------------------------------------------------------------------
+  # auth-service — register / login / OTP / password reset.
+  # ------------------------------------------------------------------
+  - type: web
     name: auth-service
     runtime: docker
-    plan: starter
+    plan: free
     dockerfilePath: ./auth-service/Dockerfile
     dockerContext: .
+    healthCheckPath: /actuator/health
     envVars:
       - key: SPRINGDOTENV_ENABLED
         value: "false"
@@ -51,12 +68,16 @@ services:
       - key: FRONTEND_URL
         sync: false
 
-  - type: pserv
+  # ------------------------------------------------------------------
+  # user-service — profile read/update, author lookups, photo uploads.
+  # ------------------------------------------------------------------
+  - type: web
     name: user-service
     runtime: docker
-    plan: starter
+    plan: free
     dockerfilePath: ./user-service/Dockerfile
     dockerContext: .
+    healthCheckPath: /actuator/health
     envVars:
       - key: SPRINGDOTENV_ENABLED
         value: "false"
@@ -65,22 +86,20 @@ services:
       - key: JWT_SECRET
         sync: false
       - key: MEDIA_SERVICE_URI
-        fromService:
-          type: pserv
-          name: media-service
-          property: hostport
+        value: http://media-service:10000
       - key: BLOG_SERVICE_URI
-        fromService:
-          type: pserv
-          name: blog-service
-          property: hostport
+        value: http://blog-service:10000
 
-  - type: pserv
+  # ------------------------------------------------------------------
+  # blog-service — blog CRUD, publish, soft-delete, list endpoints.
+  # ------------------------------------------------------------------
+  - type: web
     name: blog-service
     runtime: docker
-    plan: starter
+    plan: free
     dockerfilePath: ./blog-service/Dockerfile
     dockerContext: .
+    healthCheckPath: /actuator/health
     envVars:
       - key: SPRINGDOTENV_ENABLED
         value: "false"
@@ -89,22 +108,20 @@ services:
       - key: JWT_SECRET
         sync: false
       - key: USER_SERVICE_URI
-        fromService:
-          type: pserv
-          name: user-service
-          property: hostport
+        value: http://user-service:10000
       - key: MEDIA_SERVICE_URI
-        fromService:
-          type: pserv
-          name: media-service
-          property: hostport
+        value: http://media-service:10000
 
-  - type: pserv
+  # ------------------------------------------------------------------
+  # engagement-service — like / dislike / comment.
+  # ------------------------------------------------------------------
+  - type: web
     name: engagement-service
     runtime: docker
-    plan: starter
+    plan: free
     dockerfilePath: ./engagement-service/Dockerfile
     dockerContext: .
+    healthCheckPath: /actuator/health
     envVars:
       - key: SPRINGDOTENV_ENABLED
         value: "false"
@@ -113,19 +130,15 @@ services:
       - key: JWT_SECRET
         sync: false
       - key: USER_SERVICE_URI
-        fromService:
-          type: pserv
-          name: user-service
-          property: hostport
+        value: http://user-service:10000
 
   # ------------------------------------------------------------------
-  # Public service — the only thing your React client talks to.
+  # gateway — public entry point for the React client.
   # ------------------------------------------------------------------
-
   - type: web
     name: gateway
     runtime: docker
-    plan: starter
+    plan: free
     dockerfilePath: ./gateway/Dockerfile
     dockerContext: .
     healthCheckPath: /actuator/health
@@ -133,22 +146,10 @@ services:
       - key: SPRINGDOTENV_ENABLED
         value: "false"
       - key: AUTH_SERVICE_URI
-        fromService:
-          type: pserv
-          name: auth-service
-          property: hostport
+        value: http://auth-service:10000
       - key: USER_SERVICE_URI
-        fromService:
-          type: pserv
-          name: user-service
-          property: hostport
+        value: http://user-service:10000
       - key: BLOG_SERVICE_URI
-        fromService:
-          type: pserv
-          name: blog-service
-          property: hostport
+        value: http://blog-service:10000
       - key: ENGAGEMENT_SERVICE_URI
-        fromService:
-          type: pserv
-          name: engagement-service
-          property: hostport
+        value: http://engagement-service:10000
