@@ -3,7 +3,7 @@ springdotenv:
   ignore-if-missing: true
 
 server:
-  port: 8085
+  port: ${PORT:8085}
 
 spring:
   application:

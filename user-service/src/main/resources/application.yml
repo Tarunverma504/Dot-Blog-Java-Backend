@@ -3,7 +3,7 @@ springdotenv:
   ignore-if-missing: true
 
 server:
-  port: 8082
+  port: ${PORT:8082}
 
 # Use same DB as auth-service so we can read users (shared dotblog database)
 spring:

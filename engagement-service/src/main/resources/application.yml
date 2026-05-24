@@ -3,7 +3,7 @@ springdotenv:
   ignore-if-missing: true
 
 server:
-  port: 8084
+  port: ${PORT:8084}
 
 # Same DB as blog-service (shared `blogs` collection)
 spring:
