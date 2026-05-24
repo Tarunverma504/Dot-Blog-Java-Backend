@@ -1,0 +1,91 @@
+# =============================================================================
+# Maven / Java build output
+# =============================================================================
+target/
+build/
+out/
+bin/
+*.jar
+*.war
+*.ear
+*.class
+
+# Spring Boot repackage leftovers and Initializr scaffolding
+*.original
+HELP.md
+
+# Maven plugin scratch files
+dependency-reduced-pom.xml
+*.flattened-pom.xml
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+
+# JVM crash / replay dumps (land in the working dir when a service dies hard)
+hs_err_pid*.log
+replay_pid*.log
+
+# =============================================================================
+# IDE / Editor
+# =============================================================================
+.idea/
+.idea_modules/
+*.iml
+*.ipr
+*.iws
+
+.vscode/
+*.code-workspace
+
+# Eclipse / Spring Tools
+.settings/
+.project
+.classpath
+.factorypath
+.apt_generated/
+.springBeans
+.sts4-cache/
+
+# Vim / Emacs swap & backup files
+*.swp
+*.swo
+*~
+\#*\#
+.\#*
+
+# =============================================================================
+# Env files & secrets — never commit real credentials.
+# The .env.* wildcard covers .env.local / .env.production / .env.staging too;
+# the negations below keep the checked-in templates safe.
+# =============================================================================
+.env
+.env.*
+*.env
+!.env.example
+!env.example
+
+# =============================================================================
+# Runtime artifacts (logs, pid files written by scripts/start-all.sh)
+# =============================================================================
+*.log
+logs/
+*.pid
+
+# =============================================================================
+# Test coverage / static-analysis reports
+# =============================================================================
+*.jacoco
+jacoco.exec
+.scannerwork/
+
+# =============================================================================
+# OS noise
+# =============================================================================
+.DS_Store
+._*
+.AppleDouble
+.LSOverride
+Thumbs.db
+desktop.ini

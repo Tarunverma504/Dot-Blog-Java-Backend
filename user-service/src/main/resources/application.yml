@@ -1,0 +1,32 @@
+springdotenv:
+  directory: ..
+  ignore-if-missing: true
+
+server:
+  port: 8082
+
+# Use same DB as auth-service so we can read users (shared dotblog database)
+spring:
+  application:
+    name: user-service
+  data:
+    mongodb:
+      uri: ${DATABASE_URI:mongodb://localhost:27017/dotblog}
+
+# JWT secret must match auth-service so tokens verify across services.
+app:
+  jwt:
+    secret: ${JWT_SECRET:Dot-Blog2_SecretKey}
+  media-service:
+    base-url: ${MEDIA_SERVICE_URI:http://localhost:8085}
+  blog-service:
+    base-url: ${BLOG_SERVICE_URI:http://localhost:8083}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always

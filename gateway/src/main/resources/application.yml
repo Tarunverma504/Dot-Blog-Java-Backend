@@ -1,0 +1,51 @@
+# Loads dot-blog-backend/.env when the process working directory is a service folder (e.g. user-service/).
+# OS environment variables always override values from .env. Disable with SPRINGDOTENV_ENABLED=false.
+springdotenv:
+  directory: ..
+  ignore-if-missing: true
+
+server:
+  port: 8080
+
+spring:
+  application:
+    name: gateway
+  cloud:
+    gateway:
+      globalcors:
+        add-to-simple-url-handler-mapping: true
+        cors-configurations:
+          '[/**]':
+            allowedOrigins: "*"
+            allowedMethods: "*"
+            allowedHeaders: "*"
+            allowCredentials: false
+      routes:
+        # Service URIs default to localhost for `mvn spring-boot:run` on the
+        # host, and are overridden via env vars in docker-compose so the
+        # gateway can reach sibling containers by service name.
+        - id: auth-route
+          uri: ${AUTH_SERVICE_URI:http://localhost:8081}
+          predicates:
+            - Path=/api/v2/isAuthenticated,/api/v2/register,/api/v2/verify,/api/v2/resendOtp,/api/v2/login,/api/v2/forgot-password,/api/v2/reset-password,/api/v2/validate-password-reset-link/**
+        - id: user-route
+          uri: ${USER_SERVICE_URI:http://localhost:8082}
+          predicates:
+            - Path=/api/v2/Author/**,/api/v2/update-about,/api/v2/upload/profile-photo,/api/v2/upload/cover-photo
+        - id: blog-route
+          uri: ${BLOG_SERVICE_URI:http://localhost:8083}
+          predicates:
+            - Path=/api/v2/upload-thumbnail,/api/v2/create-blog-save,/api/v2/get-user-blogs,/api/v2/get-blog/**,/api/v2/update-blog/**,/api/v2/delete-blog/**,/api/v2/get-blogs,/api/v2/publish-blog,/api/v2/get-all-blogs,/api/v2/get-categories-blogs/**
+        - id: engagement-route
+          uri: ${ENGAGEMENT_SERVICE_URI:http://localhost:8084}
+          predicates:
+            - Path=/api/v2/like-post,/api/v2/dislike-post,/api/v2/add-commnet,/api/v2/delete-comment
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always

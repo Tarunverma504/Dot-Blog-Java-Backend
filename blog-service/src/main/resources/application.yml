@@ -1,0 +1,35 @@
+springdotenv:
+  directory: ..
+  ignore-if-missing: true
+
+server:
+  port: 8083
+
+spring:
+  application:
+    name: blog-service
+  data:
+    mongodb:
+      uri: ${DATABASE_URI:mongodb://localhost:27017/dotblog_blog}
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 12MB
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:Dot-Blog2_SecretKey}
+  user-service:
+    base-url: ${USER_SERVICE_URI:http://localhost:8082}
+  media-service:
+    base-url: ${MEDIA_SERVICE_URI:http://localhost:8085}
+    thumbnail-folder: Dot-Blog/Blog_Thumbnails
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always

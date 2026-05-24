@@ -1,0 +1,24 @@
+springdotenv:
+  directory: ${SPRINGDOTENV_DIRECTORY:..}
+  ignore-if-missing: true
+
+server:
+  port: 8081
+
+spring:
+  application:
+    name: auth-service
+  data:
+    mongodb:
+      uri: ${DATABASE_URI:mongodb://localhost:27017/dotblog}
+
+# JWT secret (use JWT_SECRET env to match Node: Dot-Blog2_SecretKey)
+app:
+  jwt:
+    secret: ${JWT_SECRET:Dot-Blog2_SecretKey}
+  encryption:
+    two-way-secret: ${TWO_WAY_SECRET:}
+  email:
+    api-key: ${RESEND_API_KEY:}
+    sender-email: ${SENDER_MAIL_ID:}
+  frontend-url: ${FRONTEND_URL:http://localhost:3000}

@@ -1,0 +1,29 @@
+springdotenv:
+  directory: ..
+  ignore-if-missing: true
+
+server:
+  port: 8084
+
+# Same DB as blog-service (shared `blogs` collection)
+spring:
+  application:
+    name: engagement-service
+  data:
+    mongodb:
+      uri: ${DATABASE_URI:mongodb://localhost:27017/dotblog_blog}
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:Dot-Blog2_SecretKey}
+  user-service:
+    base-url: ${USER_SERVICE_URI:http://localhost:8082}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always

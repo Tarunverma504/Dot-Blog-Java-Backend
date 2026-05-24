@@ -1,0 +1,216 @@
+# Dot-Blog Java Backend - full stack for local dev.
+#
+# Usage:
+#   docker compose up -d --build
+#   docker compose logs -f gateway
+#   docker compose down            # stop containers (keep MongoDB data)
+#   docker compose down -v         # also delete MongoDB volume
+#
+# Notes:
+# - `.env` (next to this file) is read automatically for variable substitution
+#   AND injected into each service via env_file.
+# - SPRINGDOTENV_ENABLED=false disables the in-app dotenv loader because
+#   compose already provides every env var.
+# - Service ports are also published to the host so you can hit them directly
+#   while developing. Remove the `ports:` entries to keep them gateway-only.
+
+services:
+  mongodb:
+    image: mongo:7
+    container_name: dotblog-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: dotblog
+    networks: [dotblog]
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: auth-service/Dockerfile
+    image: dotblog/auth-service:local
+    container_name: dotblog-auth-service
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      SPRINGDOTENV_ENABLED: "false"
+      # If DATABASE_URI is set in .env (e.g. an Atlas mongodb+srv URI) it
+      # is used as-is. Otherwise we fall back to the local `mongodb`
+      # container so the stack works out of the box.
+      DATABASE_URI: ${DATABASE_URI:-mongodb://mongodb:27017/dotblog}
+    ports:
+      - "8081:8081"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks: [dotblog]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8081/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  user-service:
+    build:
+      context: .
+      dockerfile: user-service/Dockerfile
+    image: dotblog/user-service:local
+    container_name: dotblog-user-service
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      SPRINGDOTENV_ENABLED: "false"
+      DATABASE_URI: ${DATABASE_URI:-mongodb://mongodb:27017/dotblog}
+      # user-service asks media-service to clean up old profile/cover photos.
+      MEDIA_SERVICE_URI: http://media-service:8085
+      # user-service asks blog-service for an author's published blogs when
+      # populating /api/v2/Author/:id. No depends_on — call is lazy and
+      # blog-service already depends on user-service (would be a cycle).
+      BLOG_SERVICE_URI: http://blog-service:8083
+    ports:
+      - "8082:8082"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      media-service:
+        condition: service_started
+    networks: [dotblog]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8082/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  blog-service:
+    build:
+      context: .
+      dockerfile: blog-service/Dockerfile
+    image: dotblog/blog-service:local
+    container_name: dotblog-blog-service
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      SPRINGDOTENV_ENABLED: "false"
+      DATABASE_URI: ${DATABASE_URI:-mongodb://mongodb:27017/dotblog_blog}
+      # blog-service calls user-service for author lookup + posts append.
+      USER_SERVICE_URI: http://user-service:8082
+      # blog-service delegates all Cloudinary work to media-service.
+      MEDIA_SERVICE_URI: http://media-service:8085
+    ports:
+      - "8083:8083"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      user-service:
+        condition: service_started
+      media-service:
+        condition: service_started
+    networks: [dotblog]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8083/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  engagement-service:
+    build:
+      context: .
+      dockerfile: engagement-service/Dockerfile
+    image: dotblog/engagement-service:local
+    container_name: dotblog-engagement-service
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      SPRINGDOTENV_ENABLED: "false"
+      # Engagement writes to the shared `blogs` collection, so it uses the
+      # same DB as blog-service (dotblog_blog by default).
+      DATABASE_URI: ${DATABASE_URI:-mongodb://mongodb:27017/dotblog_blog}
+      # engagement-service calls user-service to populate comment authors.
+      USER_SERVICE_URI: http://user-service:8082
+    ports:
+      - "8084:8084"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      user-service:
+        condition: service_started
+    networks: [dotblog]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8084/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  media-service:
+    build:
+      context: .
+      dockerfile: media-service/Dockerfile
+    image: dotblog/media-service:local
+    container_name: dotblog-media-service
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      SPRINGDOTENV_ENABLED: "false"
+      # Cloudinary creds come from .env (CLOUD_NAME, CLOUDINARY_API_KEY,
+      # CLOUDINARY_API_SECRET) — they only need to live here now.
+    ports:
+      - "8085:8085"
+    networks: [dotblog]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8085/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  gateway:
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+    image: dotblog/gateway:local
+    container_name: dotblog-gateway
+    restart: unless-stopped
+    environment:
+      SPRINGDOTENV_ENABLED: "false"
+      AUTH_SERVICE_URI: http://auth-service:8081
+      USER_SERVICE_URI: http://user-service:8082
+      BLOG_SERVICE_URI: http://blog-service:8083
+      ENGAGEMENT_SERVICE_URI: http://engagement-service:8084
+    ports:
+      - "8080:8080"
+    depends_on:
+      auth-service:
+        condition: service_started
+      user-service:
+        condition: service_started
+      blog-service:
+        condition: service_started
+      engagement-service:
+        condition: service_started
+    networks: [dotblog]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  mongodb_data:
+
+networks:
+  dotblog:
+    driver: bridge
