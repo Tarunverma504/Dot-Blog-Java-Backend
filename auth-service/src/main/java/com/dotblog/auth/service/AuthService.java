@@ -17,6 +17,11 @@ import org.springframework.web.server.ResponseStatusException;
 import java.security.SecureRandom;
 import java.util.Optional;
 import java.util.regex.Pattern;
+import com.dotblog.auth.messaging.OtpEventPublisher;
+import com.dotblog.events.DeliveryChannel;
+import com.dotblog.events.SendOtpEvent;
+import java.time.Instant;
+import java.util.UUID;
 
 @Service
 public class AuthService {
@@ -34,6 +39,8 @@ public class AuthService {
     private final MongoTemplate mongoTemplate;
     private final SecureRandom random = new SecureRandom();
 
+    private final OtpEventPublisher otpEventPublisher;
+
     public AuthService(UserRepository userRepository,
                        ForgotPasswordRepository forgotPasswordRepository,
                        JwtService jwtService,
@@ -41,7 +48,8 @@ public class AuthService {
                        EncryptionService encryptionService,
                        EmailService emailService,
                        AppProperties appProperties,
-                       MongoTemplate mongoTemplate) {
+                       MongoTemplate mongoTemplate,
+                       OtpEventPublisher otpEventPublisher) {
         this.userRepository = userRepository;
         this.forgotPasswordRepository = forgotPasswordRepository;
         this.jwtService = jwtService;
@@ -50,6 +58,7 @@ public class AuthService {
         this.emailService = emailService;
         this.appProperties = appProperties;
         this.mongoTemplate = mongoTemplate;
+        this.otpEventPublisher = otpEventPublisher;
     }
 
     /** Generate 6-char OTP (uppercase + digits, like Node otp-generator). */
@@ -97,6 +106,9 @@ public class AuthService {
         }
 
         String verificationToken = jwtService.createToken(user.getId());
+
+        otpEventPublisher.publish(buildOtpEvent(user.getId(), user.getEmail(), user.getOtp(), "VERIFY_EMAIL"));
+
         return AuthResponse.verification(verificationToken);
     }
 
@@ -200,8 +212,13 @@ public class AuthService {
         String newOtp = generateOtp();
         user.setOtp(newOtp);
         userRepository.save(user);
-        String msg = "Hi,\n Your OTP is: " + newOtp;
-        emailService.sendOtp(user.getEmail(), msg);
+        // String msg = "Hi,\n Your OTP is: " + newOtp;
+        // emailService.sendOtp(user.getEmail(), msg);
+
+        otpEventPublisher.publish(
+                buildOtpEvent(user.getId(), user.getEmail(), newOtp, "RESEND"
+                )
+        );
     }
 
     public void forgotPassword(ForgotPasswordRequest req) {
@@ -219,11 +236,17 @@ public class AuthService {
         fp = forgotPasswordRepository.save(fp);
         String frontendUrl = appProperties.getFrontendUrl();
         String link = frontendUrl + "/reset-password/" + fp.getId();
-        String html = "<p>Hi, Please click the below link to change the password</p><a href='" + link + "'>Reset Password!</a>";
-        boolean sent = emailService.sendResetLink(email, html, "Change account Password request");
-        if (!sent) {
-            throw new ResponseStatusException(HttpStatus.GATEWAY_TIMEOUT, "Internalserver error");
-        }
+        // String html = "<p>Hi, Please click the below link to change the password</p><a href='" + link + "'>Reset Password!</a>";
+        // boolean sent = emailService.sendResetLink(email, html, "Change account Password request");
+        // if (!sent) {
+        //     throw new ResponseStatusException(HttpStatus.GATEWAY_TIMEOUT, "Internalserver error");
+        // }
+
+        otpEventPublisher.publish(
+            buildOtpEvent(user.getId(), email, fp.getId(), "FORGOT_PASSWORD") 
+        );
+
+
     }
 
     public String resetPassword(ResetPasswordRequest req) {
@@ -278,4 +301,19 @@ public class AuthService {
                 .map(ForgotPassword::isExpired)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.GATEWAY_TIMEOUT, "Internalserver error"));
     }
+
+    private SendOtpEvent buildOtpEvent(String userId, String recipient, String otp, String purpose){
+
+        return new SendOtpEvent(
+            UUID.randomUUID().toString(),
+            Instant.now(),
+            userId,
+            recipient,
+            DeliveryChannel.EMAIL,
+            otp,
+            purpose
+        );
+    }
+
+
 }
