@@ -35,7 +35,3 @@ app:
     secret: ${JWT_SECRET:Dot-Blog2_SecretKey}
   encryption:
     two-way-secret: ${TWO_WAY_SECRET:}
-  email:
-    api-key: ${RESEND_API_KEY:}
-    sender-email: ${SENDER_MAIL_ID:}
-  frontend-url: ${FRONTEND_URL:http://localhost:3000}

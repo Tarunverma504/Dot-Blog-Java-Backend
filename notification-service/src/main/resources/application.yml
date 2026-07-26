@@ -1,0 +1,38 @@
+springdotenv:
+  directory: ${SPRINGDOTENV_DIRECTORY:..}
+  ignore-if-missing: true
+
+server:
+  port: ${PORT:8086}
+
+spring:
+  application:
+    name: notification-service
+  data:
+    mongodb:
+      uri: ${DATABASE_URI:mongodb://localhost:27017/dotblog}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
+    consumer:
+      group-id: notification-service
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      properties:
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
+        spring.json.trusted.packages: "com.dotblog.events"
+        spring.json.value.default.type: com.dotblog.events.SendOtpEvent
+        spring.json.use.type.headers: false
+
+dotblog:
+  kafka:
+    topics:
+      otp-requested: dotblog.auth.otp-requested
+      otp-requested-dlt: dotblog.auth.otp-requested.DLT
+
+
+app:
+  email:
+    api-key: ${RESEND_API_KEY:}
+    sender-email: ${SENDER_MAIL_ID:}
+  frontend-url: ${FRONTEND_URL:http://localhost:3000}

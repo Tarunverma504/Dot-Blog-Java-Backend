@@ -1,6 +1,5 @@
 package com.dotblog.auth.service;
 
-import com.dotblog.auth.config.AppProperties;
 import com.dotblog.auth.domain.ForgotPassword;
 import com.dotblog.auth.domain.User;
 import com.dotblog.auth.repository.ForgotPasswordRepository;
@@ -34,8 +33,6 @@ public class AuthService {
     private final JwtService jwtService;
     private final PasswordEncoder passwordEncoder;
     private final EncryptionService encryptionService;
-    private final EmailService emailService;
-    private final AppProperties appProperties;
     private final MongoTemplate mongoTemplate;
     private final SecureRandom random = new SecureRandom();
 
@@ -46,8 +43,6 @@ public class AuthService {
                        JwtService jwtService,
                        PasswordEncoder passwordEncoder,
                        EncryptionService encryptionService,
-                       EmailService emailService,
-                       AppProperties appProperties,
                        MongoTemplate mongoTemplate,
                        OtpEventPublisher otpEventPublisher) {
         this.userRepository = userRepository;
@@ -55,8 +50,6 @@ public class AuthService {
         this.jwtService = jwtService;
         this.passwordEncoder = passwordEncoder;
         this.encryptionService = encryptionService;
-        this.emailService = emailService;
-        this.appProperties = appProperties;
         this.mongoTemplate = mongoTemplate;
         this.otpEventPublisher = otpEventPublisher;
     }
@@ -107,7 +100,7 @@ public class AuthService {
 
         String verificationToken = jwtService.createToken(user.getId());
 
-        otpEventPublisher.publish(buildOtpEvent(user.getId(), user.getEmail(), user.getOtp(), "VERIFY_EMAIL"));
+        otpEventPublisher.publish(buildOtpEvent(user.getId(), user.getEmail(), user.getOtp(), "REGISTRATION"));
 
         return AuthResponse.verification(verificationToken);
     }
@@ -212,9 +205,6 @@ public class AuthService {
         String newOtp = generateOtp();
         user.setOtp(newOtp);
         userRepository.save(user);
-        // String msg = "Hi,\n Your OTP is: " + newOtp;
-        // emailService.sendOtp(user.getEmail(), msg);
-
         otpEventPublisher.publish(
                 buildOtpEvent(user.getId(), user.getEmail(), newOtp, "RESEND"
                 )
@@ -234,14 +224,6 @@ public class AuthService {
         fp.setUserId(user.getId());
         fp.setEmail(email);
         fp = forgotPasswordRepository.save(fp);
-        String frontendUrl = appProperties.getFrontendUrl();
-        String link = frontendUrl + "/reset-password/" + fp.getId();
-        // String html = "<p>Hi, Please click the below link to change the password</p><a href='" + link + "'>Reset Password!</a>";
-        // boolean sent = emailService.sendResetLink(email, html, "Change account Password request");
-        // if (!sent) {
-        //     throw new ResponseStatusException(HttpStatus.GATEWAY_TIMEOUT, "Internalserver error");
-        // }
-
         otpEventPublisher.publish(
             buildOtpEvent(user.getId(), email, fp.getId(), "FORGOT_PASSWORD") 
         );

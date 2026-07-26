@@ -1,4 +1,4 @@
-package com.dotblog.auth.config;
+package com.dotblog.notification.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
@@ -14,8 +14,8 @@ public class EmailProperties {
     public void setApiKey(String apiKey) { this.apiKey = apiKey != null ? apiKey : ""; }
     public String getSenderEmail() { return senderEmail; }
     public void setSenderEmail(String senderEmail) { this.senderEmail = senderEmail != null ? senderEmail : ""; }
+
     public boolean isConfigured() {
-        return apiKey != null && !apiKey.isBlank()
-                && senderEmail != null && !senderEmail.isBlank();
+        return !apiKey.isBlank() && !senderEmail.isBlank();
     }
 }

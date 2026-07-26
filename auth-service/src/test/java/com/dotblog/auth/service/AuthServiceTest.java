@@ -32,9 +32,8 @@ class AuthServiceTest {
     @Mock JwtService jwtService;
     @Mock PasswordEncoder passwordEncoder;
     @Mock EncryptionService encryptionService;
-    @Mock EmailService emailService;
-    @Mock com.dotblog.auth.config.AppProperties appProperties;
     @Mock MongoTemplate mongoTemplate;
+    @Mock com.dotblog.auth.messaging.OtpEventPublisher otpEventPublisher;
 
     @InjectMocks AuthService authService;
 
