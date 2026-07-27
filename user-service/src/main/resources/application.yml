@@ -12,6 +12,23 @@ spring:
   data:
     mongodb:
       uri: ${DATABASE_URI:mongodb://localhost:27017/dotblog}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
+    consumer:
+      group-id: user-service-profile-seed
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      properties:
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
+        spring.json.trusted.packages: "com.dotblog.events"
+        spring.json.value.default.type: com.dotblog.events.UserVerifiedEvent
+        spring.json.use.type.headers: false
+
+dotblog:
+  kafka:
+    topics:
+      user-verified: dotblog.auth.user-verified
 
 # JWT secret must match auth-service so tokens verify across services.
 app:

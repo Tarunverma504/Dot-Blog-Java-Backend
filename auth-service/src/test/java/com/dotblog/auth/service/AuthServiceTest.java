@@ -34,6 +34,7 @@ class AuthServiceTest {
     @Mock EncryptionService encryptionService;
     @Mock MongoTemplate mongoTemplate;
     @Mock com.dotblog.auth.messaging.OtpEventPublisher otpEventPublisher;
+    @Mock com.dotblog.auth.messaging.UserVerifiedEventPublisher userVerifiedEventPublisher;
 
     @InjectMocks AuthService authService;
 

@@ -80,4 +80,12 @@ public class EmailService {
             return false;
         }
     }
+
+    /** Welcome email after successful OTP verification. */
+    public boolean sendWelcome(String toEmail, String name) {
+        String safeName = (name == null || name.isBlank()) ? "there" : name;
+        String text = "Hi " + safeName + ",\n Welcome to Dot-Blog!";
+        return send(toEmail, "Welcome to Dot-Blog", text, null);
+    }
+
 }

@@ -28,6 +28,7 @@ dotblog:
   kafka:
     topics:
       otp-requested: dotblog.auth.otp-requested
+      user-verified: dotblog.auth.user-verified
 
 # JWT secret (use JWT_SECRET env to match Node: Dot-Blog2_SecretKey)
 app:

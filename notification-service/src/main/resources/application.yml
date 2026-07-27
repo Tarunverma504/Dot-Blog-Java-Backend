@@ -29,6 +29,7 @@ dotblog:
     topics:
       otp-requested: dotblog.auth.otp-requested
       otp-requested-dlt: dotblog.auth.otp-requested.DLT
+      user-verified: dotblog.auth.user-verified
 
 
 app:

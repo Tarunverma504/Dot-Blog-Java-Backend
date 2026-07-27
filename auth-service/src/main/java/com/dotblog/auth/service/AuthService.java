@@ -17,8 +17,10 @@ import java.security.SecureRandom;
 import java.util.Optional;
 import java.util.regex.Pattern;
 import com.dotblog.auth.messaging.OtpEventPublisher;
+import com.dotblog.auth.messaging.UserVerifiedEventPublisher;
 import com.dotblog.events.DeliveryChannel;
 import com.dotblog.events.SendOtpEvent;
+import com.dotblog.events.UserVerifiedEvent;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -37,6 +39,7 @@ public class AuthService {
     private final SecureRandom random = new SecureRandom();
 
     private final OtpEventPublisher otpEventPublisher;
+    private final UserVerifiedEventPublisher userVerifiedEventPublisher;
 
     public AuthService(UserRepository userRepository,
                        ForgotPasswordRepository forgotPasswordRepository,
@@ -44,7 +47,8 @@ public class AuthService {
                        PasswordEncoder passwordEncoder,
                        EncryptionService encryptionService,
                        MongoTemplate mongoTemplate,
-                       OtpEventPublisher otpEventPublisher) {
+                       OtpEventPublisher otpEventPublisher,
+                       UserVerifiedEventPublisher userVerifiedEventPublisher) {
         this.userRepository = userRepository;
         this.forgotPasswordRepository = forgotPasswordRepository;
         this.jwtService = jwtService;
@@ -52,6 +56,7 @@ public class AuthService {
         this.encryptionService = encryptionService;
         this.mongoTemplate = mongoTemplate;
         this.otpEventPublisher = otpEventPublisher;
+        this.userVerifiedEventPublisher = userVerifiedEventPublisher;
     }
 
     /** Generate 6-char OTP (uppercase + digits, like Node otp-generator). */
@@ -184,6 +189,11 @@ public class AuthService {
         }
         user.setVerified(true);
         userRepository.save(user);
+
+        userVerifiedEventPublisher.publish(
+                new UserVerifiedEvent(user.getId(), user.getEmail(), user.getName(), Instant.now())
+        );
+
         String authToken = jwtService.createToken(user.getId());
         return AuthResponse.of(
                 user.getName(),
