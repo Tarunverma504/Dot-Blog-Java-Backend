@@ -15,7 +15,23 @@ spring:
     multipart:
       max-file-size: 10MB
       max-request-size: 12MB
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
+    producer:
+      acks: all
+      retries: 3
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
+        delivery.timeout.ms: 30000
+        request.timeout.ms: 10000
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
 
+dotblog:
+  kafka:
+    topics:
+      blog-published: dotblog.blog.published
 app:
   jwt:
     secret: ${JWT_SECRET:Dot-Blog2_SecretKey}

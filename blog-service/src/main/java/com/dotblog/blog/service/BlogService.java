@@ -1,12 +1,14 @@
 package com.dotblog.blog.service;
 
 import com.dotblog.blog.domain.Blog;
+import com.dotblog.blog.messaging.BlogEventPublisher;
 import com.dotblog.blog.repository.BlogRepository;
 import com.dotblog.blog.web.dto.BlogDetailResponse;
 import com.dotblog.blog.web.dto.BlogListItem;
 import com.dotblog.blog.web.dto.CreateBlogRequest;
 import com.dotblog.blog.web.dto.UpdateBlogRequest;
 import com.dotblog.blog.web.dto.UserBlogsResponse;
+import com.dotblog.events.BlogPublishedEvent;
 import org.bson.types.ObjectId;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -25,6 +27,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.regex.Pattern;
 
 @Service
@@ -39,15 +42,18 @@ public class BlogService {
     private final MongoTemplate mongoTemplate;
     private final UserClient userClient;
     private final MediaClient mediaClient;
+    private final BlogEventPublisher blogEventPublisher;
 
     public BlogService(BlogRepository blogRepository,
                        MongoTemplate mongoTemplate,
                        UserClient userClient,
-                       MediaClient mediaClient) {
+                       MediaClient mediaClient,
+                       BlogEventPublisher blogEventPublisher) {
         this.blogRepository = blogRepository;
         this.mongoTemplate = mongoTemplate;
         this.userClient = userClient;
         this.mediaClient = mediaClient;
+        this.blogEventPublisher = blogEventPublisher;
     }
 
     // ---------------- create / get / update (Day 4) ----------------
@@ -323,6 +329,18 @@ public class BlogService {
         if (result.getMatchedCount() == 0) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Blog not found");
         }
+
+        Blog blog = blogRepository.findById(blogId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Blog not found"));
+
+        blogEventPublisher.publish(new BlogPublishedEvent(
+                UUID.randomUUID().toString(),
+                blog.getId(),
+                blog.getUserId(),
+                blog.getTitle(),
+                blog.getCategory(),
+                blog.getPublishedDate() != null ? blog.getPublishedDate() : Instant.now()
+        ));
     }
 
     /** Drops a Cloudinary public id stored on a blog. Returns it (or null) so the caller can also nuke remote asset. */
