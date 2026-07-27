@@ -28,6 +28,7 @@ dotblog:
   kafka:
     topics:
       otp-requested: dotblog.auth.otp-requested
+      user-verified: dotblog.auth.user-verified
 
 # JWT secret (use JWT_SECRET env to match Node: Dot-Blog2_SecretKey)
 app:
@@ -35,7 +36,3 @@ app:
     secret: ${JWT_SECRET:Dot-Blog2_SecretKey}
   encryption:
     two-way-secret: ${TWO_WAY_SECRET:}
-  email:
-    api-key: ${RESEND_API_KEY:}
-    sender-email: ${SENDER_MAIL_ID:}
-  frontend-url: ${FRONTEND_URL:http://localhost:3000}

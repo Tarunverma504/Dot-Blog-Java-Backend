@@ -27,6 +27,7 @@
         <module>blog-service</module>
         <module>engagement-service</module>
         <module>media-service</module>
+        <module>notification-service</module>
     </modules>
 
     <properties>
