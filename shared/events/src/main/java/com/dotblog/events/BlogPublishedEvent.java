@@ -3,6 +3,7 @@ package com.dotblog.events;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import java.util.*;
 
 import java.time.Instant;
 
@@ -13,7 +14,8 @@ public record BlogPublishedEvent(
         String userId,
         String title,
         String category,
-        Instant publishedAt) {
+        Instant publishedAt,
+        List<String> tags) {
 
     @JsonCreator
     public BlogPublishedEvent(
@@ -22,12 +24,14 @@ public record BlogPublishedEvent(
             @JsonProperty("userId") String userId,
             @JsonProperty("title") String title,
             @JsonProperty("category") String category,
-            @JsonProperty("publishedAt") Instant publishedAt) {
+            @JsonProperty("publishedAt") Instant publishedAt,
+            @JsonProperty("tags") List<String> tags) {
         this.eventId = eventId;
         this.blogId = blogId;
         this.userId = userId;
         this.title = title;
         this.category = category;
         this.publishedAt = publishedAt != null ? publishedAt : Instant.now();
+        this.tags = tags != null ? tags : List.of();
     }
 }

@@ -339,7 +339,8 @@ public class BlogService {
                 blog.getUserId(),
                 blog.getTitle(),
                 blog.getCategory(),
-                blog.getPublishedDate() != null ? blog.getPublishedDate() : Instant.now()
+                blog.getPublishedDate() != null ? blog.getPublishedDate() : Instant.now(),
+                blog.getCategory() == null || blog.getCategory().isBlank() ? List.of() : List.of(blog.getCategory())
         ));
     }
 
