@@ -11,6 +11,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
+import com.dotblog.blog.messaging.MediaDeletionEventPublisher;
+import com.dotblog.events.MediaDeletionRequestedEvent;
+import java.util.UUID;
+import java.time.Instant;
+
 
 import java.util.List;
 import java.util.Map;
@@ -23,15 +28,18 @@ public class BlogController {
     private final JwtSupport jwtSupport;
     private final MediaClient mediaClient;
     private final ObjectMapper objectMapper;
+    private final MediaDeletionEventPublisher mediaDeletionEventPublisher;
 
     public BlogController(BlogService blogService,
                           JwtSupport jwtSupport,
                           MediaClient mediaClient,
-                          ObjectMapper objectMapper) {
+                          ObjectMapper objectMapper,
+                          MediaDeletionEventPublisher mediaDeletionEventPublisher) {
         this.blogService = blogService;
         this.jwtSupport = jwtSupport;
         this.mediaClient = mediaClient;
         this.objectMapper = objectMapper;
+        this.mediaDeletionEventPublisher = mediaDeletionEventPublisher;
     }
 
     // ---- Day 4 ----
@@ -132,7 +140,13 @@ public class BlogController {
         MediaClient.UploadResult result = mediaClient.uploadThumbnail(file);
         String prevPublicId = extractPublicId(prevImageJson);
         if (prevPublicId != null && !prevPublicId.isBlank()) {
-            mediaClient.delete(prevPublicId);
+
+            mediaDeletionEventPublisher.publish(new MediaDeletionRequestedEvent(
+                UUID.randomUUID().toString(),
+                prevPublicId,
+                "BLOG_THUMBNAIL_REPLACED",
+                Instant.now()
+            ));
         }
         return ResponseEntity.ok(Map.of(
                 "ImageUrl", result.url(),

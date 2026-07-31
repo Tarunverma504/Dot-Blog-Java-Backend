@@ -32,6 +32,8 @@ dotblog:
   kafka:
     topics:
       blog-published: dotblog.blog.published
+      media-deletion-requested: dotblog.media.deletion-requested
+
 app:
   jwt:
     secret: ${JWT_SECRET:Dot-Blog2_SecretKey}

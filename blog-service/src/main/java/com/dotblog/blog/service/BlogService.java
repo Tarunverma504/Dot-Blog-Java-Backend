@@ -18,6 +18,8 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
+import com.dotblog.blog.messaging.MediaDeletionEventPublisher;
+import com.dotblog.events.MediaDeletionRequestedEvent;
 
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -43,17 +45,20 @@ public class BlogService {
     private final UserClient userClient;
     private final MediaClient mediaClient;
     private final BlogEventPublisher blogEventPublisher;
+    private final MediaDeletionEventPublisher mediaDeletionEventPublisher;
 
     public BlogService(BlogRepository blogRepository,
                        MongoTemplate mongoTemplate,
                        UserClient userClient,
                        MediaClient mediaClient,
-                       BlogEventPublisher blogEventPublisher) {
+                       BlogEventPublisher blogEventPublisher,
+                       MediaDeletionEventPublisher mediaDeletionEventPublisher) {
         this.blogRepository = blogRepository;
         this.mongoTemplate = mongoTemplate;
         this.userClient = userClient;
         this.mediaClient = mediaClient;
         this.blogEventPublisher = blogEventPublisher;
+        this.mediaDeletionEventPublisher = mediaDeletionEventPublisher;
     }
 
     // ---------------- create / get / update (Day 4) ----------------
@@ -150,8 +155,14 @@ public class BlogService {
                 Blog.class
         );
 
-        if (prevPublicIdToDelete != null) {
-            mediaClient.delete(prevPublicIdToDelete);
+        
+        if(prevPublicIdToDelete != null){
+            mediaDeletionEventPublisher.publish(new MediaDeletionRequestedEvent(
+                UUID.randomUUID().toString(), 
+                prevPublicIdToDelete, 
+                "BLOG_THUMBNAIL_REPLACED",
+                Instant.now()
+            ));
         }
     }
 

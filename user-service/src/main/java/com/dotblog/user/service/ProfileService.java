@@ -11,6 +11,10 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
+import com.dotblog.user.messaging.MediaDeletionEventPublisher;
+import com.dotblog.events.MediaDeletionRequestedEvent;
+import java.util.UUID;
+import java.time.Instant;
 
 /**
  * Profile operations on the shared {@code users} document. All writes use
@@ -26,10 +30,12 @@ public class ProfileService {
 
     private final MongoTemplate mongoTemplate;
     private final MediaClient mediaClient;
+    private final MediaDeletionEventPublisher mediaDeletionEventPublisher;
 
-    public ProfileService(MongoTemplate mongoTemplate, MediaClient mediaClient) {
+    public ProfileService(MongoTemplate mongoTemplate, MediaClient mediaClient, MediaDeletionEventPublisher mediaDeletionEventPublisher) {
         this.mongoTemplate = mongoTemplate;
         this.mediaClient = mediaClient;
+        this.mediaDeletionEventPublisher = mediaDeletionEventPublisher;
     }
 
     public ProfilePayload updateAbout(String userId, String aboutRaw) {
@@ -94,7 +100,12 @@ public class ProfileService {
         }
 
         if (prevPublicId != null && !prevPublicId.isBlank() && !prevPublicId.equals(publicId)) {
-            mediaClient.delete(prevPublicId);
+            mediaDeletionEventPublisher.publish(new MediaDeletionRequestedEvent(
+                UUID.randomUUID().toString(),
+                prevPublicId,
+                "USER_PROFILE_PHOTO_REPLACED",
+                Instant.now()
+            ));
         }
 
         return UploadPhotoResponse.of(url, publicId);
