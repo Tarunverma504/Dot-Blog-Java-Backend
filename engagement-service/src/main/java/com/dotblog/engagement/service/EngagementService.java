@@ -76,13 +76,15 @@ public class EngagementService {
     public int dislikePost(String userId, String blogId) {
         requireBlog(blogId);
         Update update = new Update().pull("likes", new Document("userId", userIdMatchValues(userId)));
-        mongoTemplate.updateFirst(byId(blogId), update, BLOGS);
-        engagementEventPublisher.publishUnliked(new BlogUnlikedEvent(
-            UUID.randomUUID().toString(),
-            blogId,
-            userId,
-            Instant.now()
-        ));
+        var result = mongoTemplate.updateFirst(byId(blogId), update, BLOGS);
+        if (result.getModifiedCount() > 0) {
+            engagementEventPublisher.publishUnliked(new BlogUnlikedEvent(
+                UUID.randomUUID().toString(),
+                blogId,
+                userId,
+                Instant.now()
+            ));
+        }
         return likesCount(requireBlog(blogId));
     }
 
