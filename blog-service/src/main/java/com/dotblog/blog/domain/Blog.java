@@ -38,6 +38,12 @@ public class Blog {
     @Field("Category")
     private String category = "";
 
+    @Field("LikesCount")
+    private int likesCount = 0;
+
+    @Field("CommentsCount")
+    private int commentsCount = 0;
+
     private boolean isPublished = false;
 
     /**
@@ -98,6 +104,11 @@ public class Blog {
 
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt != null ? createdAt : Instant.now(); }
+
+    public int getLikesCount() { return likesCount; }
+    public void setLikesCount(int likesCount) { this.likesCount = likesCount; }
+    public int getCommentsCount() { return commentsCount; }
+    public void setCommentsCount(int commentsCount) { this.commentsCount = commentsCount; }
 
     public static class Like {
         private String userId;

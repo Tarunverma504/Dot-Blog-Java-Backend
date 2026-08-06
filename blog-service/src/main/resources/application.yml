@@ -27,12 +27,28 @@ spring:
         request.timeout.ms: 10000
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    consumer:
+      group-id: ${dotblog.kafka.consumer.group-id}
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      properties:
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
+        spring.json.trusted.packages: "com.dotblog.events"
+        spring.json.use.type.headers: true
+
 
 dotblog:
   kafka:
+    consumer:
+      group-id: blog-service-engagement-projection
     topics:
       blog-published: dotblog.blog.published
       media-deletion-requested: dotblog.media.deletion-requested
+      blog-liked: dotblog.blog.liked
+      blog-unliked: dotblog.blog.unliked
+      blog-commented: dotblog.blog.commented
+      blog-comment-deleted: dotblog.blog.comment-deleted
 
 app:
   jwt:

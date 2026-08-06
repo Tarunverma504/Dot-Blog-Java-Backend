@@ -12,6 +12,26 @@ spring:
   data:
     mongodb:
       uri: ${DATABASE_URI:mongodb://localhost:27017/dotblog_blog}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
+    producer:
+      acks: all
+      retries: 3
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
+        delivery.timeout.ms: 30000
+        request.timeout.ms: 10000
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+dotblog:
+  kafka:
+    topics:
+      blog-liked: dotblog.blog.liked
+      blog-unliked: dotblog.blog.unliked
+      blog-commented: dotblog.blog.commented
+      blog-comment-deleted: dotblog.blog.comment-deleted
 
 app:
   jwt:

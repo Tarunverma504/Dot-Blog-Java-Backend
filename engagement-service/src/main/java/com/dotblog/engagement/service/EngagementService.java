@@ -9,7 +9,6 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
-
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Date;
@@ -18,7 +17,12 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
+import com.dotblog.engagement.messaging.EngagementEventPublisher;
+import java.util.UUID;
+import com.dotblog.events.BlogLikedEvent;
+import com.dotblog.events.BlogUnlikedEvent;
+import com.dotblog.events.BlogCommentedEvent;
+import com.dotblog.events.BlogCommentDeletedEvent;
 /**
  * Direct read/write to the shared {@code blogs} collection (same Atlas DB
  * blog-service uses). Untyped {@code Document} operations are deliberate —
@@ -31,10 +35,16 @@ public class EngagementService {
 
     private final MongoTemplate mongoTemplate;
     private final UserClient userClient;
+    private final EngagementEventPublisher engagementEventPublisher;
 
-    public EngagementService(MongoTemplate mongoTemplate, UserClient userClient) {
+    public EngagementService(
+            MongoTemplate mongoTemplate,
+            UserClient userClient,
+            EngagementEventPublisher engagementEventPublisher
+    ) {
         this.mongoTemplate = mongoTemplate;
         this.userClient = userClient;
+        this.engagementEventPublisher = engagementEventPublisher;
     }
 
     /** Push like and return new likes count. Idempotent: same userId twice = 1 entry total. */
@@ -46,6 +56,12 @@ public class EngagementService {
         Document like = new Document("userId", userId);
         Update update = new Update().push("likes", like);
         mongoTemplate.updateFirst(byId(blogId), update, BLOGS);
+        engagementEventPublisher.publishLiked(new BlogLikedEvent(
+            UUID.randomUUID().toString(),
+            blogId,
+            userId,
+            Instant.now()
+        ));
         return likesCount(requireBlog(blogId));
     }
 
@@ -61,6 +77,12 @@ public class EngagementService {
         requireBlog(blogId);
         Update update = new Update().pull("likes", new Document("userId", userIdMatchValues(userId)));
         mongoTemplate.updateFirst(byId(blogId), update, BLOGS);
+        engagementEventPublisher.publishUnliked(new BlogUnlikedEvent(
+            UUID.randomUUID().toString(),
+            blogId,
+            userId,
+            Instant.now()
+        ));
         return likesCount(requireBlog(blogId));
     }
 
@@ -76,6 +98,15 @@ public class EngagementService {
                 .append("createdAt", Date.from(Instant.now()));
         Update update = new Update().push("comments", comment);
         mongoTemplate.updateFirst(byId(blogId), update, BLOGS);
+        engagementEventPublisher.publishCommented(new BlogCommentedEvent(
+            UUID.randomUUID().toString(),
+            blogId,
+            userId,
+            text,
+            comment.getObjectId("_id").toString(),
+            Instant.now()
+
+        ));
         return populateAndSort(requireBlog(blogId));
     }
 
@@ -95,6 +126,16 @@ public class EngagementService {
         if (result.getModifiedCount() == 0) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Comment not found");
         }
+        else{
+            engagementEventPublisher.publishCommentDeleted(new BlogCommentDeletedEvent(
+                UUID.randomUUID().toString(),
+                blogId,
+                null,          // userId not available in this method — OK for now
+                commentId,
+                Instant.now()
+            ));
+        }
+
         return populateAndSort(requireBlog(blogId));
     }
 
