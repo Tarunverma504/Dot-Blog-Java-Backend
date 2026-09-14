@@ -15,6 +15,41 @@ spring:
     multipart:
       max-file-size: 10MB
       max-request-size: 12MB
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
+    producer:
+      acks: all
+      retries: 3
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
+        delivery.timeout.ms: 30000
+        request.timeout.ms: 10000
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    consumer:
+      group-id: ${dotblog.kafka.consumer.group-id}
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      properties:
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
+        spring.json.trusted.packages: "com.dotblog.events"
+        spring.json.use.type.headers: true
+
+
+dotblog:
+  kafka:
+    consumer:
+      group-id: blog-service-engagement-projection
+    topics:
+      blog-published: dotblog.blog.published
+      blog-created: dotblog.blog.created
+      media-deletion-requested: dotblog.media.deletion-requested
+      blog-liked: dotblog.blog.liked
+      blog-unliked: dotblog.blog.unliked
+      blog-commented: dotblog.blog.commented
+      blog-comment-deleted: dotblog.blog.comment-deleted
 
 app:
   jwt:

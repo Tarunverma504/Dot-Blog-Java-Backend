@@ -14,6 +14,16 @@ spring:
       uri: ${DATABASE_URI:mongodb://localhost:27017/dotblog}
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
+    producer:
+      acks: all
+      retries: 3
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
+        delivery.timeout.ms: 30000
+        request.timeout.ms: 10000
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
     consumer:
       group-id: user-service-profile-seed
       auto-offset-reset: earliest
@@ -29,6 +39,8 @@ dotblog:
   kafka:
     topics:
       user-verified: dotblog.auth.user-verified
+      media-deletion-requested: dotblog.media.deletion-requested
+
 
 # JWT secret must match auth-service so tokens verify across services.
 app:

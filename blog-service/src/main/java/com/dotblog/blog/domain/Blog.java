@@ -38,6 +38,12 @@ public class Blog {
     @Field("Category")
     private String category = "";
 
+    @Field("LikesCount")
+    private int likesCount = 0;
+
+    @Field("CommentsCount")
+    private int commentsCount = 0;
+
     private boolean isPublished = false;
 
     /**
@@ -48,6 +54,11 @@ public class Blog {
      */
     private boolean hidden = false;
 
+    /**
+     * Legacy arrays from the shared-document era. New likes/comments are written
+     * to {@code engagements}; these fields stay mapped so old Atlas docs still
+     * deserialize. Blog reads should prefer {@code engagements} + count projections.
+     */
     private List<Like> likes = new ArrayList<>();
 
     private List<Comment> comments = new ArrayList<>();
@@ -98,6 +109,11 @@ public class Blog {
 
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt != null ? createdAt : Instant.now(); }
+
+    public int getLikesCount() { return likesCount; }
+    public void setLikesCount(int likesCount) { this.likesCount = likesCount; }
+    public int getCommentsCount() { return commentsCount; }
+    public void setCommentsCount(int commentsCount) { this.commentsCount = commentsCount; }
 
     public static class Like {
         private String userId;
