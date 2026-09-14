@@ -8,6 +8,11 @@ import com.dotblog.blog.web.dto.BlogListItem;
 import com.dotblog.blog.web.dto.CreateBlogRequest;
 import com.dotblog.blog.web.dto.UpdateBlogRequest;
 import com.dotblog.blog.web.dto.UserBlogsResponse;
+import com.dotblog.blog.config.ChaosProperties;
+import com.dotblog.blog.config.KafkaTopicsProperties;
+import com.dotblog.blog.domain.OutboxEvent;
+import com.dotblog.blog.repository.OutboxEventRepository;
+import com.dotblog.events.BlogCreatedEvent;
 import com.dotblog.events.BlogPublishedEvent;
 import org.bson.types.ObjectId;
 import org.springframework.data.domain.Sort;
@@ -15,16 +20,24 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.data.mongodb.MongoTransactionManager;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.server.ResponseStatusException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import com.dotblog.blog.messaging.MediaDeletionEventPublisher;
 import com.dotblog.events.MediaDeletionRequestedEvent;
+
+import org.bson.Document;
 
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -34,6 +47,10 @@ import java.util.regex.Pattern;
 
 @Service
 public class BlogService {
+
+    private static final Logger log = LoggerFactory.getLogger(BlogService.class);
+
+    private static final String ENGAGEMENTS = "engagements";
 
     private static final String[] MONTH_NAMES = {
             "January", "February", "March", "April", "May", "June",
@@ -46,19 +63,31 @@ public class BlogService {
     private final MediaClient mediaClient;
     private final BlogEventPublisher blogEventPublisher;
     private final MediaDeletionEventPublisher mediaDeletionEventPublisher;
+    private final ChaosProperties chaosProperties;
+    private final OutboxEventRepository outboxEventRepository;
+    private final KafkaTopicsProperties kafkaTopics;
+    private final TransactionTemplate transactionTemplate;
 
     public BlogService(BlogRepository blogRepository,
                        MongoTemplate mongoTemplate,
                        UserClient userClient,
                        MediaClient mediaClient,
                        BlogEventPublisher blogEventPublisher,
-                       MediaDeletionEventPublisher mediaDeletionEventPublisher) {
+                       MediaDeletionEventPublisher mediaDeletionEventPublisher,
+                       ChaosProperties chaosProperties,
+                       OutboxEventRepository outboxEventRepository,
+                       KafkaTopicsProperties kafkaTopics,
+                       MongoTransactionManager mongoTransactionManager) {
         this.blogRepository = blogRepository;
         this.mongoTemplate = mongoTemplate;
         this.userClient = userClient;
         this.mediaClient = mediaClient;
         this.blogEventPublisher = blogEventPublisher;
         this.mediaDeletionEventPublisher = mediaDeletionEventPublisher;
+        this.chaosProperties = chaosProperties;
+        this.outboxEventRepository = outboxEventRepository;
+        this.kafkaTopics = kafkaTopics;
+        this.transactionTemplate = new TransactionTemplate(mongoTransactionManager);
     }
 
     // ---------------- create / get / update (Day 4) ----------------
@@ -75,14 +104,67 @@ public class BlogService {
         blog.setBody(normalizeContent(req.content()));
         blog.setCategory(req.category());
         blog.setSubText(req.subText());
-        Blog saved = blogRepository.save(blog);
+        PersistedCreate persisted = persistBlogAndOutbox(blog, userId);
+
+        // Crash AFTER the Mongo commit. Blog + outbox row both exist; the relay
+        // (not this request thread) still publishes to Kafka.
+        if (chaosProperties.isFailAfterBlogPersist()) {
+            throw new IllegalStateException(
+                    "chaos: blog+outbox committed id=" + persisted.blog().getId()
+                            + " then crashed before HTTP appendPost"
+            );
+        }
+
         try {
-            userClient.appendPost(userId, saved.getId());
+            userClient.appendPost(userId, persisted.blog().getId());
         } catch (Exception e) {
-            blogRepository.deleteById(saved.getId());
+            blogRepository.deleteById(persisted.blog().getId());
+            outboxEventRepository.deleteById(persisted.eventId());
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
         }
     }
+
+    /**
+     * Writes the blog and its {@code outbox_events} row in one Mongo transaction
+     * when the server is a replica set. Standalone Mongo (local compose) cannot
+     * start a transaction — we fall back to sequential writes and log it.
+     */
+    private PersistedCreate persistBlogAndOutbox(Blog blog, String userId) {
+        try {
+            return transactionTemplate.execute(status -> writeBlogAndOutbox(blog, userId));
+        } catch (RuntimeException e) {
+            if (!isStandaloneMongo(e)) {
+                throw e;
+            }
+            log.warn("Mongo transactions unavailable (replica set required). Writing blog+outbox sequentially.");
+            return writeBlogAndOutbox(blog, userId);
+        }
+    }
+
+    private PersistedCreate writeBlogAndOutbox(Blog blog, String userId) {
+        Blog saved = blogRepository.save(blog);
+        BlogCreatedEvent event = new BlogCreatedEvent(
+                UUID.randomUUID().toString(),
+                saved.getId(),
+                userId,
+                saved.getTitle(),
+                saved.getCreatedAt() != null ? saved.getCreatedAt() : Instant.now()
+        );
+        outboxEventRepository.save(OutboxEvent.pendingCreated(kafkaTopics.getBlogCreated(), event));
+        return new PersistedCreate(saved, event.eventId());
+    }
+
+    private static boolean isStandaloneMongo(Throwable error) {
+        for (Throwable cur = error; cur != null; cur = cur.getCause()) {
+            String message = cur.getMessage();
+            if (message != null && (message.contains("Transaction numbers") || message.contains("replica set"))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private record PersistedCreate(Blog blog, String eventId) {}
 
     public BlogDetailResponse getBlog(String id, String optionalUserId) {
         Blog blog = blogRepository.findById(id)
@@ -96,12 +178,14 @@ public class BlogService {
         String authorName = author != null && author.name() != null ? author.name() : "";
         String authorPhoto = author != null && author.profilePhoto() != null ? author.profilePhoto() : "";
 
-        boolean isAlreadyLiked = optionalUserId != null && blog.getLikes() != null
-                && blog.getLikes().stream().anyMatch(l -> optionalUserId.equals(l.getUserId()));
-
-        List<Blog.Comment> comments = blog.getComments() != null ? new ArrayList<>(blog.getComments()) : new ArrayList<>();
+        Document engagement = engagementOf(id);
+        List<Blog.Like> likes = likesFrom(engagement);
+        List<Blog.Comment> comments = commentsFrom(engagement);
         comments.sort(BlogService::compareByCreatedAt);
         List<Object> populatedComments = populateComments(comments);
+
+        boolean isAlreadyLiked = optionalUserId != null
+                && likes.stream().anyMatch(l -> optionalUserId.equals(l.getUserId()));
 
         return new BlogDetailResponse(
                 blog.getTitle(),
@@ -114,7 +198,7 @@ public class BlogService {
                 formatCreatedAt(blog.getCreatedAt() != null
                         ? blog.getCreatedAt().atZone(ZoneOffset.UTC)
                         : ZonedDateTime.now(ZoneOffset.UTC)),
-                blog.getLikes() != null ? blog.getLikes().size() : 0,
+                blog.getLikesCount(),
                 populatedComments,
                 isAlreadyLiked,
                 blog.getCategory()
@@ -223,10 +307,11 @@ public class BlogService {
                 ? new BlogListItem.AuthorRef(me.id(), me.name(), me.profilePhoto())
                 : BlogListItem.AuthorRef.unknown(userId);
 
+        Map<String, Document> engagements = engagementsByBlogIds(blogs);
         List<BlogListItem> published = new ArrayList<>();
         List<BlogListItem> draft = new ArrayList<>();
         for (Blog b : blogs) {
-            BlogListItem item = toListItem(b, ref);
+            BlogListItem item = toListItem(b, ref, engagements.get(b.getId()));
             if (b.isPublished()) {
                 published.add(item);
             } else if (!publishedOnly) {
@@ -255,8 +340,9 @@ public class BlogService {
         BlogListItem.AuthorRef ref = me != null
                 ? new BlogListItem.AuthorRef(me.id(), me.name(), me.profilePhoto())
                 : BlogListItem.AuthorRef.unknown(userId);
+        Map<String, Document> engagements = engagementsByBlogIds(blogs);
         for (Blog b : blogs) {
-            BlogListItem item = toListItem(b, ref);
+            BlogListItem item = toListItem(b, ref, engagements.get(b.getId()));
             if (b.isPublished()) {
                 published.add(item);
             } else {
@@ -371,18 +457,19 @@ public class BlogService {
             if (b.getUserId() != null) authorIds.add(b.getUserId());
         }
         Map<String, UserClient.UserSummary> summaries = userClient.summariesByIds(authorIds);
+        Map<String, Document> engagements = engagementsByBlogIds(blogs);
         List<BlogListItem> out = new ArrayList<>(blogs.size());
         for (Blog b : blogs) {
             UserClient.UserSummary s = summaries.get(b.getUserId());
             BlogListItem.AuthorRef ref = s != null
                     ? new BlogListItem.AuthorRef(s.id(), s.name(), s.profilePhoto())
                     : BlogListItem.AuthorRef.unknown(b.getUserId());
-            out.add(toListItem(b, ref));
+            out.add(toListItem(b, ref, engagements.get(b.getId())));
         }
         return out;
     }
 
-    private BlogListItem toListItem(Blog b, BlogListItem.AuthorRef author) {
+    private BlogListItem toListItem(Blog b, BlogListItem.AuthorRef author, Document engagement) {
         return new BlogListItem(
                 b.getId(),
                 author,
@@ -393,11 +480,90 @@ public class BlogService {
                 b.getBody(),
                 b.getCategory(),
                 b.isPublished(),
-                b.getLikes() != null ? b.getLikes() : List.of(),
-                b.getComments() != null ? b.getComments() : List.of(),
+                likesFrom(engagement),
+                commentsFrom(engagement),
                 b.getPublishedDate(),
                 b.getCreatedAt()
         );
+    }
+
+    private Document engagementOf(String blogId) {
+        return mongoTemplate.findById(blogId, Document.class, ENGAGEMENTS);
+    }
+
+    private Map<String, Document> engagementsByBlogIds(List<Blog> blogs) {
+        List<String> ids = new ArrayList<>();
+        for (Blog b : blogs) {
+            if (b.getId() != null) {
+                ids.add(b.getId());
+            }
+        }
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        List<Document> found = mongoTemplate.find(
+                Query.query(Criteria.where("_id").in(ids)),
+                Document.class,
+                ENGAGEMENTS
+        );
+        Map<String, Document> byId = new HashMap<>();
+        for (Document d : found) {
+            Object id = d.get("_id");
+            if (id != null) {
+                byId.put(id.toString(), d);
+            }
+        }
+        return byId;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Blog.Like> likesFrom(Document engagement) {
+        if (engagement == null) {
+            return List.of();
+        }
+        List<Document> raw = (List<Document>) engagement.get("likes");
+        if (raw == null || raw.isEmpty()) {
+            return List.of();
+        }
+        List<Blog.Like> likes = new ArrayList<>(raw.size());
+        for (Document d : raw) {
+            Object userId = d.get("userId");
+            likes.add(new Blog.Like(userId != null ? userId.toString() : null));
+        }
+        return likes;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Blog.Comment> commentsFrom(Document engagement) {
+        if (engagement == null) {
+            return List.of();
+        }
+        List<Document> raw = (List<Document>) engagement.get("comments");
+        if (raw == null || raw.isEmpty()) {
+            return List.of();
+        }
+        List<Blog.Comment> comments = new ArrayList<>(raw.size());
+        for (Document d : raw) {
+            Blog.Comment comment = new Blog.Comment();
+            Object id = d.get("_id");
+            Object userId = d.get("userId");
+            comment.setId(id != null ? id.toString() : null);
+            comment.setUserId(userId != null ? userId.toString() : null);
+            comment.setText(d.getString("text"));
+            comment.setCreatedAt(toInstant(d.get("createdAt")));
+            comments.add(comment);
+        }
+        return comments;
+    }
+
+    private static Instant toInstant(Object value) {
+        if (value instanceof Instant instant) {
+            return instant;
+        }
+        if (value instanceof Date date) {
+            return date.toInstant();
+        }
+        return Instant.now();
     }
 
     private List<Object> populateComments(List<Blog.Comment> comments) {

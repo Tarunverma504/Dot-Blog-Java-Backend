@@ -47,7 +47,7 @@ public class EngagementProjectionListener {
         }
         mongoTemplate.updateFirst(
                 Query.query(Criteria.where("_id").is(event.blogId())),
-                new Update().inc("likesCount", 1),
+                new Update().inc("LikesCount", 1),
                 Blog.class
         );
     }
@@ -65,8 +65,8 @@ public class EngagementProjectionListener {
             return;
         }
         mongoTemplate.updateFirst(
-                Query.query(Criteria.where("_id").is(event.blogId()).and("likesCount").gt(0)),
-                new Update().inc("likesCount", -1),
+                Query.query(Criteria.where("_id").is(event.blogId()).and("LikesCount").gt(0)),
+                new Update().inc("LikesCount", -1),
                 Blog.class
         );
     }
@@ -85,7 +85,7 @@ public class EngagementProjectionListener {
         }
         mongoTemplate.updateFirst(
                 Query.query(Criteria.where("_id").is(event.blogId())),
-                new Update().inc("commentsCount", 1),
+                new Update().inc("CommentsCount", 1),
                 Blog.class
         );
     }
@@ -103,8 +103,8 @@ public class EngagementProjectionListener {
             return;
         }
         mongoTemplate.updateFirst(
-                Query.query(Criteria.where("_id").is(event.blogId()).and("commentsCount").gt(0)),
-                new Update().inc("commentsCount", -1),
+                Query.query(Criteria.where("_id").is(event.blogId()).and("CommentsCount").gt(0)),
+                new Update().inc("CommentsCount", -1),
                 Blog.class
         );
     }

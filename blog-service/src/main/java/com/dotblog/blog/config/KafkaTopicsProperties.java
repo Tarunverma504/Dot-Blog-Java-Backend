@@ -7,6 +7,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "dotblog.kafka.topics")
 public class KafkaTopicsProperties {
      private String blogPublished;
+     private String blogCreated;
      private String mediaDeletionRequested;
      private String blogLiked;
      private String blogUnliked;
@@ -19,6 +20,14 @@ public class KafkaTopicsProperties {
 
      public void setBlogPublished(String blogPublished) {
         this.blogPublished = blogPublished;
+     }
+
+     public String getBlogCreated() {
+        return blogCreated;
+     }
+
+     public void setBlogCreated(String blogCreated) {
+        this.blogCreated = blogCreated;
      }
 
      public String getMediaDeletionRequested() {

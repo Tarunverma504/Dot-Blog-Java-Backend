@@ -5,7 +5,8 @@ springdotenv:
 server:
   port: ${PORT:8084}
 
-# Same DB as blog-service (shared `blogs` collection)
+# Same Atlas DB as blog-service. Likes/comments live in `engagements`;
+# blogs is read only for existence checks.
 spring:
   application:
     name: engagement-service

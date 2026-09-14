@@ -54,6 +54,11 @@ public class Blog {
      */
     private boolean hidden = false;
 
+    /**
+     * Legacy arrays from the shared-document era. New likes/comments are written
+     * to {@code engagements}; these fields stay mapped so old Atlas docs still
+     * deserialize. Blog reads should prefer {@code engagements} + count projections.
+     */
     private List<Like> likes = new ArrayList<>();
 
     private List<Comment> comments = new ArrayList<>();
